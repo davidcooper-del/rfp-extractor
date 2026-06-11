@@ -11,7 +11,7 @@
   <ProviderName>Radiant Systems / RADGov</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="RFP Extractor"/>
-  <Description DefaultValue="Extract RFP details from SalesRFP folder emails and export to Excel."/>
+  <Description DefaultValue="Extract RFP details from SalesRFP folder emails and sync to SharePoint Excel."/>
 
   <Requirements>
     <Sets>
@@ -22,7 +22,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://YOUR_HOSTED_URL/taskpane.html"/>
+        <SourceLocation DefaultValue="https://davidcooper-del.github.io/rfp-extractor/taskpane.html"/>
         <RequestedHeight>550</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -73,20 +73,20 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://YOUR_HOSTED_URL/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://YOUR_HOSTED_URL/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://YOUR_HOSTED_URL/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://davidcooper-del.github.io/rfp-extractor/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://davidcooper-del.github.io/rfp-extractor/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://davidcooper-del.github.io/rfp-extractor/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://YOUR_HOSTED_URL/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://YOUR_HOSTED_URL/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://davidcooper-del.github.io/rfp-extractor/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://davidcooper-del.github.io/rfp-extractor/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GroupLabel" DefaultValue="RFP Tools"/>
         <bt:String id="TaskpaneButton.Label" DefaultValue="RFP Extractor"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the RFP Extractor to parse emails from SalesRFP folder and export to Excel."/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Scan SalesRFP folder and sync new RFPs to SharePoint Excel."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
