@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RFP Extractor — RADGov</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --surface: #151827;
+      --card: #1c2035;
+      --border: #272d4a;
+      --accent: #4f6ef7;
+      --accent-dim: rgba(79,110,247,0.15);
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --text: #e8eaf6;
+      --muted: #6b7399;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; min-height: 100vh; }
+
+    /* ── Layout ── */
+    .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; position: sticky; top: 0; height: 100vh; }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 24px; border-bottom: 1px solid var(--border); }
+    .logo-mark { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #fff; flex-shrink: 0; }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .logo-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; }
+    .nav-item:hover { background: var(--card); color: var(--text); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+    .auth-pill { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--card); border-radius: 8px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); transition: all 0.15s; }
+    .auth-pill:hover { border-color: var(--accent); }
+    .auth-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background 0.3s; }
+    .auth-dot.ok { background: var(--green); }
+    .auth-name { flex: 1; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .auth-action { color: var(--muted); font-size: 11px; }
+
+    /* ── Main ── */
+    .main { display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { padding: 20px 28px 0; display: flex; align-items: center; justify-content: space-between; }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .content { padding: 20px 28px 28px; flex: 1; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+
+    /* ── KPI row ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+    .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+    .kpi-val { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+    .kpi-val.green { color: var(--green); }
+    .kpi-val.blue { color: var(--accent); }
+    .kpi-val.yellow { color: var(--yellow); }
+    .kpi-val.muted { color: var(--muted); }
+    .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Timer card ── */
+    .timer-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; display: flex; align-items: center; gap: 20px; }
+    .timer-ring-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+    .timer-ring-wrap svg { transform: rotate(-90deg); }
+    .timer-track { fill: none; stroke: var(--card); stroke-width: 5; }
+    .timer-fill { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 163.4; stroke-dashoffset: 163.4; transition: stroke-dashoffset 1s linear; }
+    .timer-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+    .timer-info { flex: 1; }
+    .timer-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+    .timer-desc { font-size: 12px; color: var(--muted); }
+    .timer-desc span { color: var(--green); font-weight: 600; }
+    .toggle-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--card); border-radius: 22px; cursor: pointer; transition: 0.2s; border: 1px solid var(--border); }
+    .toggle-slider:before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; top: 3px; background: var(--muted); border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked + .toggle-slider:before { transform: translateX(18px); background: #fff; }
+    .toggle-label { font-size: 12px; color: var(--muted); }
+    .timer-actions { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Buttons ── */
+    .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3a56d4; box-shadow: 0 0 20px rgba(79,110,247,0.3); }
+    .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-green { background: var(--green); color: #0d0f1a; }
+    .btn-green:hover:not(:disabled) { background: #28b885; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+    /* ── Settings panel ── */
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field-full { grid-column: 1 / -1; }
+    .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .field input { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 13px; font-family: var(--font); outline: none; transition: border-color 0.15s; }
+    .field input:focus { border-color: var(--accent); }
+    .field input::placeholder { color: var(--muted); }
+    .field-hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .field-hint code { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; color: var(--accent); font-size: 10px; }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead tr { background: var(--card); }
+    thead th { padding: 10px 12px; text-align: left; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; white-space: nowrap; }
+    tbody tr { border-top: 1px solid var(--border); transition: background 0.1s; }
+    tbody tr:hover { background: var(--card); }
+    tbody td { padding: 10px 12px; vertical-align: middle; }
+    .td-name { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .td-state { color: var(--accent); font-weight: 700; text-align: center; }
+    .td-date { color: var(--green); white-space: nowrap; font-size: 11px; }
+    .td-na { color: var(--muted); }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+    .badge-new { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid var(--green); }
+    .badge-dup { background: rgba(251,191,36,0.12); color: var(--yellow); border: 1px solid var(--yellow); }
+    .badge-err { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid var(--red); }
+    .badge-pending { background: rgba(107,115,153,0.15); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ── Progress ── */
+    .progress-wrap { background: var(--card); border-radius: 4px; height: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; width: 0%; transition: width 0.4s ease; }
+
+    /* ── Log ── */
+    .log-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 11px; font-family: 'Consolas', 'Courier New', monospace; max-height: 160px; overflow-y: auto; line-height: 1.7; }
+    .log-ok { color: var(--green); }
+    .log-warn { color: var(--yellow); }
+    .log-err { color: var(--red); }
+    .log-info { color: var(--accent); }
+    .log-muted { color: var(--muted); }
+
+    /* ── Tab panels ── */
+    .panel { display: none; flex-direction: column; gap: 18px; }
+    .panel.active { display: flex; }
+
+    /* ── Empty ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+    .empty-text { font-size: 13px; line-height: 1.7; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Auth overlay ── */
+    .auth-overlay { position: fixed; inset: 0; background: rgba(13,15,26,0.92); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .auth-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 420px; width: 90%; text-align: center; }
+    .auth-box-logo { width: 56px; height: 56px; background: var(--accent); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: #fff; margin: 0 auto 20px; }
+    .auth-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .auth-box p { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 24px; }
+    .btn-ms { background: #fff; color: #1a1a1a; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; transition: all 0.15s; }
+    .btn-ms:hover { background: #f0f0f0; }
+    .ms-logo { font-size: 18px; }
+  </style>
+</head>
+<body>
+
+<!-- Auth overlay (shown until signed in) -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <div class="auth-box-logo">R</div>
+    <h2>RFP Extractor</h2>
+    <p>Sign in with your Microsoft 365 account to connect to Outlook and SharePoint. Your credentials never leave your browser.</p>
+    <button class="btn-ms" onclick="signIn()">
+      <span class="ms-logo">⊞</span> Sign in with Microsoft
+    </button>
+    <div style="margin-top:16px; font-size:11px; color:var(--muted)" id="authMsg"></div>
+  </div>
+</div>
+
+<!-- Main shell -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">R</div>
+      <div>
+        <div class="logo-text">RFP Extractor</div>
+        <div class="logo-sub">RADGov · Radiant Systems</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showPanel('dashboard', this)">
+        <span class="nav-icon">📊</span> Dashboard
+      </button>
+      <button class="nav-item" onclick="showPanel('results', this)">
+        <span class="nav-icon">📋</span> Results
+        <span id="resultsBadgeNav" style="margin-left:auto; background:var(--accent-dim); color:var(--accent); border-radius:20px; padding:1px 8px; font-size:10px; font-weight:700; display:none">0</span>
+      </button>
+      <button class="nav-item" onclick="showPanel('log', this)">
+        <span class="nav-icon">📝</span> Activity Log
+      </button>
+      <button class="nav-item" onclick="showPanel('settings', this)">
+        <span class="nav-icon">⚙️</span> Settings
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="auth-pill" onclick="signOut()">
+        <div class="auth-dot" id="authDot"></div>
+        <div class="auth-name" id="authName">Not signed in</div>
+        <div class="auth-action" id="authActionText">Sign in</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title" id="pageTitle">Dashboard</div>
+        <div class="page-sub" id="pageSub">SalesRFP folder · Auto-sync to SharePoint Excel</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="showPanel('settings', document.querySelector('.nav-item:nth-child(4)'))">⚙ Settings</button>
+        <button class="btn btn-primary" id="btnRun" onclick="runScan()">▶ Run Now</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD PANEL -->
+      <div class="panel active" id="panel-dashboard">
+        <!-- KPIs -->
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-label">Emails Found</div>
+            <div class="kpi-val blue" id="kpiEmails">—</div>
+            <div class="kpi-sub">in SalesRFP folder</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">New Rows Added</div>
+            <div class="kpi-val green" id="kpiNew">—</div>
+            <div class="kpi-sub">to SharePoint Excel</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Duplicates Skipped</div>
+            <div class="kpi-val yellow" id="kpiDup">—</div>
+            <div class="kpi-sub">already in Excel</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Last Sync</div>
+            <div class="kpi-val muted" id="kpiLastSync" style="font-size:16px; margin-top:4px">Never</div>
+            <div class="kpi-sub" id="kpiStatus">—</div>
+          </div>
+        </div>
+
+        <!-- Timer -->
+        <div class="timer-card">
+          <div class="timer-ring-wrap">
+            <svg viewBox="0 0 64 64" width="64" height="64">
+              <circle class="timer-track" cx="32" cy="32" r="26"/>
+              <circle class="timer-fill" id="timerRing" cx="32" cy="32" r="26"/>
+            </svg>
+            <div class="timer-label" id="timerLabel">—</div>
+          </div>
+          <div class="timer-info">
+            <div class="timer-title">Hourly Auto-Scan</div>
+            <div class="timer-desc">Next run: <span id="nextRunTime">—</span></div>
+            <div class="toggle-row">
+              <label class="toggle">
+                <input type="checkbox" id="autoToggle" onchange="toggleAuto(this.checked)"/>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label" id="toggleLabel">Enable hourly auto-scan</span>
+            </div>
+          </div>
+          <div class="timer-actions">
+            <button class="btn btn-primary" id="btnRun2" onclick="runScan()">▶ Run Now</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearResults()">Clear results</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="card" id="progressCard" style="display:none">
+          <div class="card-header">
+            <span class="card-title" id="progressTitle">Scanning…</span>
+            <span style="font-size:12px; color:var(--muted)" id="progressPct">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div style="font-size:12px; color:var(--muted); margin-top:8px" id="progressMsg">Starting…</div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty" id="emptyState">
+          <div class="empty-icon">📬</div>
+          <div class="empty-text">Enable <strong>Auto-scan</strong> or click <strong>Run Now</strong> to scan your SalesRFP folder and sync new RFPs directly to your SharePoint Excel file.</div>
+        </div>
+      </div>
+
+      <!-- RESULTS PANEL -->
+      <div class="panel" id="panel-results">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Last Run — Extracted RFPs</span>
+            <div style="display:flex; gap:8px">
+              <span id="resultsBadge" style="background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent); border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700">0 records</span>
+              <button class="btn btn-ghost btn-sm" onclick="exportCsv()">⬇ Export CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap" id="tableWrap">
+            <div class="empty" style="padding:30px">
+              <div class="empty-icon" style="font-size:24px">📭</div>
+              <div class="empty-text">No results yet — run a scan first.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOG PANEL -->
+      <div class="panel" id="panel-log">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Activity Log</span>
+            <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+          </div>
+          <div class="log-wrap" id="logBox" style="max-height:500px">
+            <div class="log-info">[ready] RFP Extractor initialized. Sign in to begin.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS PANEL -->
+      <div class="panel" id="panel-settings">
+        <div class="card">
+          <div class="card-header"><span class="card-title">API Keys</span></div>
+          <div class="settings-grid">
+            <div class="field field-full">
+              <label>Anthropic API Key</label>
+              <input type="password" id="sApiKey" placeholder="sk-ant-api03-…"/>
+              <div class="field-hint">Your Claude API key from console.anthropic.com. Stored in localStorage only.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">SharePoint / Excel</span></div>
+          <div class="settings-grid">
+            <div class="field field-full">
+              <label>SharePoint Site URL</label>
+              <input type="text" id="sSiteUrl" placeholder="https://radiantsystems.sharepoint.com/sites/RADGov"/>
+              <div class="field-hint">Base URL of your SharePoint site — no trailing slash.</div>
+            </div>
+            <div class="field field-full">
+              <label>Excel File Path</label>
+              <input type="text" id="sFilePath" placeholder="/Shared Documents/RFP_List.xlsx"/>
+              <div class="field-hint">Path from the site root. Usually starts with <code>/Shared Documents/</code></div>
+            </div>
+            <div class="field">
+              <label>Sheet Name</label>
+              <input type="text" id="sSheetName" placeholder="Sheet1"/>
+              <div class="field-hint">Exact tab name in the Excel file.</div>
+            </div>
+            <div class="field">
+              <label>Scan Interval (minutes)</label>
+              <input type="number" id="sInterval" placeholder="60" min="10" max="1440"/>
+              <div class="field-hint">How often to auto-scan. Min: 10 minutes.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Azure App Registration</span></div>
+          <div class="settings-grid">
+            <div class="field">
+              <label>Client ID</label>
+              <input type="text" id="sClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+              <div class="field-hint">Application (client) ID from Azure Portal.</div>
+            </div>
+            <div class="field">
+              <label>Tenant ID</label>
+              <input type="text" id="sTenantId" placeholder="common"/>
+              <div class="field-hint">Directory (tenant) ID, or use <code>common</code> for any org.</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+          <div id="saveBanner" style="display:none; align-items:center; color:var(--green); font-size:13px">✓ Saved</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   RFP Extractor — Standalone Web App
+   Microsoft Graph API (no Outlook add-in needed)
+   ============================================================ */
+'use strict';
+
+const TIMER_CIRC = 2 * Math.PI * 26; // r=26 → 163.4
+
+const state = {
+  graphToken: null,
+  userEmail: null,
+  userName: null,
+  results: [],
+  scanning: false,
+  autoEnabled: false,
+  timerInterval: null,
+  scheduledTimeout: null,
+  nextRunAt: null,
+  settings: {
+    apiKey: '',
+    siteUrl: '',
+    filePath: '',
+    sheetName: 'Sheet1',
+    intervalMins: 60,
+    clientId: '',
+    tenantId: 'common',
+  },
+};
+
+// ── Init ──────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  loadSettings();
+  populateSettingsUI();
+  // Check for token in URL hash (after MSAL redirect)
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const params = parseHash(hash);
+    if (params.access_token) {
+      state.graphToken = params.access_token;
+      localStorage.setItem('rfpGraphToken', params.access_token);
+      window.location.hash = '';
+      onSignedIn();
+      return;
+    }
+  }
+  // Try restoring saved token
+  const saved = localStorage.getItem('rfpGraphToken');
+  if (saved) {
+    state.graphToken = saved;
+    fetchUserInfo().then(ok => {
+      if (ok) onSignedIn();
+      else { state.graphToken = null; localStorage.removeItem('rfpGraphToken'); }
+    });
+  }
+});
+
+function parseHash(hash) {
+  const obj = {};
+  hash.replace(/^#/, '').split('&').forEach(p => {
+    const [k, v] = p.split('=');
+    obj[decodeURIComponent(k)] = decodeURIComponent(v || '');
+  });
+  return obj;
+}
+
+// ── Auth ──────────────────────────────────────────────────────
+function signIn() {
+  const clientId = state.settings.clientId || document.getElementById('sClientId').value.trim();
+  const tenantId = state.settings.tenantId || 'common';
+  if (!clientId) {
+    document.getElementById('authMsg').textContent = 'Enter your Azure Client ID in Settings first.';
+    return;
+  }
+  const redirect = encodeURIComponent(window.location.origin + window.location.pathname);
+  const scope = encodeURIComponent('https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Files.ReadWrite https://graph.microsoft.com/Sites.ReadWrite.All https://graph.microsoft.com/User.Read offline_access');
+  const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?client_id=${clientId}&response_type=token&redirect_uri=${redirect}&scope=${scope}&response_mode=fragment`;
+  window.location.href = url;
+}
+
+function signOut() {
+  state.graphToken = null;
+  state.userName = null;
+  state.userEmail = null;
+  localStorage.removeItem('rfpGraphToken');
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('authDot').className = 'auth-dot';
+  document.getElementById('authName').textContent = 'Not signed in';
+  document.getElementById('authActionText').textContent = 'Sign in';
+  log('info', 'Signed out.');
+}
+
+async function fetchUserInfo() {
+  try {
+    const res = await graphGet('/me?$select=displayName,mail');
+    if (!res.ok) return false;
+    const data = await res.json();
+    state.userName = data.displayName || 'User';
+    state.userEmail = data.mail || '';
+    return true;
+  } catch { return false; }
+}
+
+function onSignedIn() {
+  fetchUserInfo().then(() => {
+    document.getElementById('authOverlay').style.display = 'none';
+    document.getElementById('authDot').className = 'auth-dot ok';
+    document.getElementById('authName').textContent = state.userName || state.userEmail || 'Signed in';
+    document.getElementById('authActionText').textContent = 'Sign out';
+    log('ok', `Signed in as ${state.userName || state.userEmail}`);
+  });
+}
+
+// ── Graph helpers ─────────────────────────────────────────────
+function graphGet(path) {
+  return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { 'Authorization': `Bearer ${state.graphToken}` }
+  });
+}
+function graphPost(path, body) {
+  return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${state.graphToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+function graphPatch(path, body) {
+  return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${state.graphToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+// ── Main scan pipeline ────────────────────────────────────────
+async function runScan() {
+  if (state.scanning) return;
+  state.scanning = true;
+  state.results = [];
+
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnRun2').disabled = true;
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+  setProgress(5, 'Locating SalesRFP folder…');
+  log('info', '─── Scan started ───');
+
+  try {
+    // Step 1: Find SalesRFP mail folder
+    log('info', 'Searching for SalesRFP mail folder…');
+    const foldersRes = await graphGet('/me/mailFolders?$top=50');
+    if (!foldersRes.ok) throw new Error('Could not read mail folders. Check Mail.Read permission.');
+    const foldersData = await foldersRes.json();
+    let folder = (foldersData.value || []).find(f => f.displayName.toLowerCase() === 'salesrfp');
+
+    // Also search child folders if not found at top level
+    if (!folder) {
+      const childRes = await graphGet('/me/mailFolders/inbox/childFolders?$top=50');
+      if (childRes.ok) {
+        const childData = await childRes.json();
+        folder = (childData.value || []).find(f => f.displayName.toLowerCase() === 'salesrfp');
+      }
+    }
+    if (!folder) throw new Error('"SalesRFP" folder not found. Make sure it exists in your Outlook.');
+    log('ok', `Found folder: "${folder.displayName}" (${folder.totalItemCount} items)`);
+    setProgress(15, 'Fetching emails…');
+
+    // Step 2: Get emails
+    const msgsRes = await graphGet(`/me/mailFolders/${folder.id}/messages?$top=100&$select=subject,body,receivedDateTime&$orderby=receivedDateTime desc`);
+    if (!msgsRes.ok) throw new Error('Could not read emails from SalesRFP folder.');
+    const msgsData = await msgsRes.json();
+    const emails = msgsData.value || [];
+
+    if (emails.length === 0) {
+      setProgress(100, 'No emails found.');
+      log('warn', 'No emails in SalesRFP folder.');
+      document.getElementById('kpiEmails').textContent = '0';
+      document.getElementById('emptyState').style.display = 'block';
+      return;
+    }
+
+    document.getElementById('kpiEmails').textContent = emails.length;
+    log('ok', `${emails.length} email(s) found. Running Claude AI extraction…`);
+    setProgress(20, `Extracting ${emails.length} emails with Claude AI…`);
+
+    // Step 3: AI extract each email
+    const total = emails.length;
+    let done = 0;
+    for (const email of emails) {
+      try {
+        log('info', `Extracting: "${trunc(email.subject, 50)}"`);
+        const result = await extractWithClaude(email);
+        result.subject = email.subject;
+        result.received = email.receivedDateTime ? email.receivedDateTime.slice(0, 10) : '';
+        state.results.push(result);
+      } catch (e) {
+        log('warn', `Failed: ${e.message}`);
+        state.results.push({ OppName: trunc(email.subject, 60) || 'N/A', State: 'N/A', OwnerOrganization: 'N/A', DueDate: 'N/A', subject: email.subject, error: e.message });
+      }
+      done++;
+      setProgress(20 + Math.round((done / total) * 55), `Extracted ${done} of ${total}…`);
+      renderTable();
+    }
+
+    log('ok', `AI extraction complete. ${state.results.length} records.`);
+    setProgress(78, 'Writing to SharePoint Excel…');
+
+    // Step 4: Write to SharePoint Excel
+    let newCount = 0, dupCount = 0;
+    if (state.settings.siteUrl && state.settings.filePath) {
+      try {
+        const r = await writeToSharePoint(state.results);
+        newCount = r.newCount;
+        dupCount = r.dupCount;
+        log('ok', `SharePoint sync complete: ${newCount} new, ${dupCount} duplicates skipped.`);
+      } catch (e) {
+        log('err', `SharePoint sync failed: ${e.message}`);
+      }
+    } else {
+      log('warn', 'SharePoint not configured — configure Site URL and File Path in Settings.');
+    }
+
+    // Update KPIs
+    const now = new Date();
+    document.getElementById('kpiNew').textContent = newCount;
+    document.getElementById('kpiDup').textContent = dupCount;
+    document.getElementById('kpiLastSync').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('kpiStatus').textContent = `${newCount} new rows added`;
+    setProgress(100, `Done — ${newCount} new rows added to Excel.`);
+    log('ok', `─── Scan complete at ${now.toLocaleTimeString()} ───`);
+    renderTable();
+
+  } catch (err) {
+    log('err', err.message);
+    setProgress(0, 'Error — check the Activity Log.');
+    document.getElementById('kpiStatus').textContent = 'Error';
+  } finally {
+    state.scanning = false;
+    document.getElementById('btnRun').disabled = false;
+    document.getElementById('btnRun2').disabled = false;
+    setTimeout(() => { document.getElementById('progressCard').style.display = 'none'; }, 3000);
+  }
+}
+
+// ── Claude AI extraction ──────────────────────────────────────
+async function extractWithClaude(email) {
+  const apiKey = state.settings.apiKey;
+  if (!apiKey) throw new Error('No Anthropic API key — add it in Settings.');
+
+  const bodyText = (email.body && email.body.content ? email.body.content : '').replace(/<[^>]+>/g, ' ').slice(0, 4000);
+
+  const prompt = `You are an RFP data extraction assistant for a government staffing company.
+
+Extract the following details from this email:
+OppName - clean RFP name (remove Lead, QA, ADDEN, state codes)
+State - 2-letter US state code (CA, TX, NY etc.)
+OwnerOrganization - the company or government agency issuing the RFP
+DueDate - final submission due date in YYYY-MM-DD format
+
+Rules:
+- For DueDate: find "Due Date", "Deadline", "Proposal Due", "Submission Deadline". Pick the FINAL/LATEST date if multiple.
+- For State: extract from subject pattern like "Lead - CA -" or state name in body.
+- For OppName: remove "Lead", "QA", "ADDEN", state codes, extra punctuation. Keep short and clean.
+- If any field not found, return N/A.
+
+EMAIL SUBJECT: ${email.subject}
+EMAIL BODY: ${bodyText}
+
+Return ONLY valid JSON, no markdown:
+{"OppName":"...","State":"...","OwnerOrganization":"...","DueDate":"..."}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+  });
+
+  if (!res.ok) throw new Error(`Claude API ${res.status}`);
+  const data = await res.json();
+  const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('').replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  return { OppName: parsed.OppName || 'N/A', State: parsed.State || 'N/A', OwnerOrganization: parsed.OwnerOrganization || 'N/A', DueDate: parsed.DueDate || 'N/A' };
+}
+
+// ── Write to SharePoint Excel ─────────────────────────────────
+async function writeToSharePoint(records) {
+  const { siteUrl, filePath, sheetName } = state.settings;
+  const host = new URL(siteUrl).host;
+  const sitePath = new URL(siteUrl).pathname;
+  const encodedFile = filePath.replace(/^\//, '');
+  const base = `https://graph.microsoft.com/v1.0/sites/${host}:${sitePath}:/drive/root:/${encodedFile}:/workbook`;
+  const headers = { 'Authorization': `Bearer ${state.graphToken}` };
+
+  // Read existing rows for dedup
+  let existingKeys = new Set();
+  try {
+    const r = await fetch(`${base}/worksheets/${encodeURIComponent(sheetName)}/usedRange?$select=values`, { headers });
+    if (r.ok) {
+      const d = await r.json();
+      (d.values || []).slice(1).forEach(row => {
+        const key = `${(row[0]||'').toString().trim().toLowerCase()}||${(row[3]||'').toString().trim()}`;
+        existingKeys.add(key);
+      });
+      log('info', `${existingKeys.size} existing rows found for dedup check.`);
+    }
+  } catch (e) { log('warn', 'Could not read existing rows: ' + e.message); }
+
+  // Tag results
+  let newRows = [], dupCount = 0;
+  records.forEach(r => {
+    if (r.error) { r._status = 'err'; return; }
+    const key = `${(r.OppName||'').trim().toLowerCase()}||${(r.DueDate||'').trim()}`;
+    if (existingKeys.has(key)) { r._status = 'dup'; dupCount++; }
+    else { r._status = 'new'; newRows.push(r); }
+  });
+
+  if (newRows.length === 0) return { newCount: 0, dupCount };
+
+  // Find next empty row
+  const usedRes = await fetch(`${base}/worksheets/${encodeURIComponent(sheetName)}/usedRange?$select=rowCount`, { headers });
+  let startRow = 1;
+  if (usedRes.ok) { const d = await usedRes.json(); startRow = d.rowCount || 1; }
+
+  const values = newRows.map(r => [r.OppName || 'N/A', r.State || 'N/A', r.OwnerOrganization || 'N/A', r.DueDate || 'N/A']);
+  const endRow = startRow + newRows.length - 1;
+  const addr = `A${startRow + 1}:D${endRow + 1}`;
+
+  const patchRes = await fetch(`${base}/worksheets/${encodeURIComponent(sheetName)}/range(address='${addr}')`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+  if (!patchRes.ok) {
+    const e = await patchRes.text();
+    throw new Error(`Graph PATCH ${patchRes.status}: ${e.slice(0, 150)}`);
+  }
+
+  return { newCount: newRows.length, dupCount };
+}
+
+// ── Auto timer ────────────────────────────────────────────────
+function toggleAuto(on) {
+  state.autoEnabled = on;
+  document.getElementById('toggleLabel').textContent = on ? 'Auto-scan enabled' : 'Enable hourly auto-scan';
+  if (on) { startTimer(); log('info', `Auto-scan ON — every ${state.settings.intervalMins} min.`); }
+  else { stopTimer(); setTimerDisplay(0, '—'); document.getElementById('nextRunTime').textContent = '—'; log('info', 'Auto-scan OFF.'); }
+}
+
+function startTimer() {
+  const ms = state.settings.intervalMins * 60000;
+  state.nextRunAt = new Date(Date.now() + ms);
+  document.getElementById('nextRunTime').textContent = state.nextRunAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  state.scheduledTimeout = setTimeout(async function tick() {
+    if (!state.autoEnabled) return;
+    log('info', 'Auto-scan triggered.');
+    await runScan();
+    if (state.autoEnabled) {
+      state.nextRunAt = new Date(Date.now() + ms);
+      document.getElementById('nextRunTime').textContent = state.nextRunAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      state.scheduledTimeout = setTimeout(tick, ms);
+    }
+  }, ms);
+  state.timerInterval = setInterval(() => {
+    if (!state.nextRunAt) return;
+    const rem = Math.max(0, state.nextRunAt - Date.now());
+    const pct = 1 - rem / (state.settings.intervalMins * 60000);
+    const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
+    setTimerDisplay(pct, `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
+  }, 1000);
+}
+
+function stopTimer() {
+  if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+  if (state.scheduledTimeout) { clearTimeout(state.scheduledTimeout); state.scheduledTimeout = null; }
+}
+
+function setTimerDisplay(pct, label) {
+  document.getElementById('timerRing').style.strokeDashoffset = TIMER_CIRC * (1 - pct);
+  document.getElementById('timerLabel').textContent = label;
+}
+
+// ── Render table ──────────────────────────────────────────────
+function renderTable() {
+  const rows = state.results;
+  const count = rows.length;
+  document.getElementById('resultsBadge').textContent = `${count} record${count !== 1 ? 's' : ''}`;
+  document.getElementById('resultsBadgeNav').textContent = count;
+  document.getElementById('resultsBadgeNav').style.display = count > 0 ? 'inline' : 'none';
+
+  if (count === 0) {
+    document.getElementById('tableWrap').innerHTML = '<div class="empty" style="padding:30px"><div class="empty-icon" style="font-size:24px">📭</div><div class="empty-text">No results yet.</div></div>';
+    return;
+  }
+
+  let html = `<table><thead><tr><th>OppName</th><th>ST</th><th>Organization</th><th>Due Date</th><th>Received</th><th>Status</th></tr></thead><tbody>`;
+  for (const r of rows) {
+    const badge = r._status === 'new' ? '<span class="badge badge-new">NEW</span>'
+      : r._status === 'dup' ? '<span class="badge badge-dup">DUP</span>'
+      : r._status === 'err' ? `<span class="badge badge-err" title="${r.error||''}">ERR</span>`
+      : '<span class="badge badge-pending">—</span>';
+    html += `<tr>
+      <td class="td-name" title="${r.OppName||''}">${r.OppName||'N/A'}</td>
+      <td class="${r.State && r.State!=='N/A' ? 'td-state' : 'td-na'}">${r.State||'N/A'}</td>
+      <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.OwnerOrganization||''}">${r.OwnerOrganization||'N/A'}</td>
+      <td class="${r.DueDate && r.DueDate!=='N/A' ? 'td-date' : 'td-na'}">${r.DueDate||'N/A'}</td>
+      <td style="font-size:11px;color:var(--muted)">${r.received||''}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('tableWrap').innerHTML = html;
+}
+
+// ── Export CSV ────────────────────────────────────────────────
+function exportCsv() {
+  if (!state.results.length) return;
+  const rows = [['OppName','State','OwnerOrganization','DueDate','Received','Status']];
+  state.results.forEach(r => rows.push([r.OppName,r.State,r.OwnerOrganization,r.DueDate,r.received||'',r._status||'']));
+  const csv = rows.map(r => r.map(c => `"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `RFP_Extracted_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  log('ok', 'CSV exported.');
+}
+
+// ── Settings ──────────────────────────────────────────────────
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('rfpSettings') || '{}');
+    state.settings = { ...state.settings, ...s };
+  } catch {}
+}
+function populateSettingsUI() {
+  document.getElementById('sApiKey').value = state.settings.apiKey || '';
+  document.getElementById('sSiteUrl').value = state.settings.siteUrl || '';
+  document.getElementById('sFilePath').value = state.settings.filePath || '';
+  document.getElementById('sSheetName').value = state.settings.sheetName || 'Sheet1';
+  document.getElementById('sInterval').value = state.settings.intervalMins || 60;
+  document.getElementById('sClientId').value = state.settings.clientId || '';
+  document.getElementById('sTenantId').value = state.settings.tenantId || 'common';
+}
+function saveSettings() {
+  state.settings.apiKey = document.getElementById('sApiKey').value.trim();
+  state.settings.siteUrl = document.getElementById('sSiteUrl').value.trim().replace(/\/$/, '');
+  state.settings.filePath = document.getElementById('sFilePath').value.trim();
+  state.settings.sheetName = document.getElementById('sSheetName').value.trim() || 'Sheet1';
+  state.settings.intervalMins = Math.max(10, parseInt(document.getElementById('sInterval').value) || 60);
+  state.settings.clientId = document.getElementById('sClientId').value.trim();
+  state.settings.tenantId = document.getElementById('sTenantId').value.trim() || 'common';
+  localStorage.setItem('rfpSettings', JSON.stringify(state.settings));
+  const b = document.getElementById('saveBanner');
+  b.style.display = 'flex'; setTimeout(() => { b.style.display = 'none'; }, 2000);
+  log('ok', 'Settings saved.');
+}
+
+// ── UI helpers ────────────────────────────────────────────────
+function showPanel(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  const titles = { dashboard: ['Dashboard', 'SalesRFP folder · Auto-sync to SharePoint Excel'], results: ['Results', 'Last scan extraction results'], log: ['Activity Log', 'Timestamped record of all actions'], settings: ['Settings', 'Configure API keys and SharePoint connection'] };
+  const t = titles[name] || [name, ''];
+  document.getElementById('pageTitle').textContent = t[0];
+  document.getElementById('pageSub').textContent = t[1];
+}
+function setProgress(pct, msg) {
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  if (msg) document.getElementById('progressMsg').textContent = msg;
+}
+function clearResults() {
+  state.results = [];
+  renderTable();
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('kpiEmails').textContent = '—';
+  document.getElementById('kpiNew').textContent = '—';
+  document.getElementById('kpiDup').textContent = '—';
+  document.getElementById('kpiLastSync').textContent = 'Never';
+  document.getElementById('kpiStatus').textContent = '—';
+  log('info', 'Results cleared.');
+}
+function log(level, msg) {
+  const box = document.getElementById('logBox');
+  const el = document.createElement('div');
+  el.className = `log-${level}`;
+  el.textContent = `[${new Date().toLocaleTimeString('en-US', { hour12: false })}] ${msg}`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() { document.getElementById('logBox').innerHTML = '<div class="log-muted">[cleared]</div>'; }
+function trunc(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : (s || ''); }
+</script>
+</body>
+</html>
