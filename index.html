@@ -174,11 +174,31 @@
   <div class="auth-box">
     <div class="auth-box-logo">R</div>
     <h2>RFP Extractor</h2>
-    <p>Sign in with your Microsoft 365 account to connect to Outlook and SharePoint. Your credentials never leave your browser.</p>
-    <button class="btn-ms" onclick="signIn()">
+    <p>Enter your Azure App details below, then sign in with Microsoft to connect to Outlook and SharePoint.</p>
+
+    <div style="text-align:left; display:flex; flex-direction:column; gap:12px; margin-bottom:20px">
+      <div>
+        <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:5px">Azure Client ID</div>
+        <input id="overlayClientId" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          style="width:100%; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:var(--font)"/>
+        <div style="font-size:11px; color:var(--muted); margin-top:4px">From Azure Portal → App registrations → RFP Extractor → Overview</div>
+      </div>
+      <div>
+        <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:5px">Tenant ID <span style="font-weight:400">(leave as "common" if unsure)</span></div>
+        <input id="overlayTenantId" type="text" placeholder="common"
+          style="width:100%; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:var(--font)"/>
+      </div>
+      <div>
+        <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:5px">OpenAI API Key</div>
+        <input id="overlayApiKey" type="password" placeholder="sk-…"
+          style="width:100%; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text); font-size:13px; outline:none; font-family:var(--font)"/>
+      </div>
+    </div>
+
+    <button class="btn-ms" onclick="signInFromOverlay()">
       <span class="ms-logo">⊞</span> Sign in with Microsoft
     </button>
-    <div style="margin-top:16px; font-size:11px; color:var(--muted)" id="authMsg"></div>
+    <div style="margin-top:12px; font-size:11px; color:var(--muted)" id="authMsg"></div>
   </div>
 </div>
 
@@ -342,9 +362,9 @@
           <div class="card-header"><span class="card-title">API Keys</span></div>
           <div class="settings-grid">
             <div class="field field-full">
-              <label>Anthropic API Key</label>
-              <input type="password" id="sApiKey" placeholder="sk-ant-api03-…"/>
-              <div class="field-hint">Your Claude API key from console.anthropic.com. Stored in localStorage only.</div>
+              <label>OpenAI API Key</label>
+              <input type="password" id="sApiKey" placeholder="sk-…"/>
+              <div class="field-hint">Your OpenAI API key from platform.openai.com. Stored in localStorage only.</div>
             </div>
           </div>
         </div>
@@ -465,6 +485,23 @@ function parseHash(hash) {
 }
 
 // ── Auth ──────────────────────────────────────────────────────
+function signInFromOverlay() {
+  const clientId = document.getElementById('overlayClientId').value.trim();
+  const tenantId = document.getElementById('overlayTenantId').value.trim() || 'common';
+  const apiKey = document.getElementById('overlayApiKey').value.trim();
+  if (!clientId) {
+    document.getElementById('authMsg').textContent = '⚠ Please enter your Azure Client ID above.';
+    document.getElementById('overlayClientId').style.borderColor = 'var(--red)';
+    return;
+  }
+  state.settings.clientId = clientId;
+  state.settings.tenantId = tenantId;
+  if (apiKey) state.settings.apiKey = apiKey;
+  localStorage.setItem('rfpSettings', JSON.stringify(state.settings));
+  populateSettingsUI();
+  signIn();
+}
+
 function signIn() {
   const clientId = state.settings.clientId || document.getElementById('sClientId').value.trim();
   const tenantId = state.settings.tenantId || 'common';
@@ -645,7 +682,7 @@ async function runScan() {
 // ── Claude AI extraction ──────────────────────────────────────
 async function extractWithClaude(email) {
   const apiKey = state.settings.apiKey;
-  if (!apiKey) throw new Error('No Anthropic API key — add it in Settings.');
+  if (!apiKey) throw new Error('No OpenAI API key — add it in Settings.');
 
   const bodyText = (email.body && email.body.content ? email.body.content : '').replace(/<[^>]+>/g, ' ').slice(0, 4000);
 
@@ -669,17 +706,37 @@ EMAIL BODY: ${bodyText}
 Return ONLY valid JSON, no markdown:
 {"OppName":"...","State":"...","OwnerOrganization":"...","DueDate":"..."}`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 300,
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'You are an RFP data extraction assistant. Always respond with valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+    }),
   });
 
-  if (!res.ok) throw new Error(`Claude API ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`OpenAI API ${res.status}: ${err?.error?.message || 'Unknown error'}`);
+  }
   const data = await res.json();
-  const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('').replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(raw);
-  return { OppName: parsed.OppName || 'N/A', State: parsed.State || 'N/A', OwnerOrganization: parsed.OwnerOrganization || 'N/A', DueDate: parsed.DueDate || 'N/A' };
+  const raw = data.choices?.[0]?.message?.content || '{}';
+  const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+  return {
+    OppName: parsed.OppName || 'N/A',
+    State: parsed.State || 'N/A',
+    OwnerOrganization: parsed.OwnerOrganization || 'N/A',
+    DueDate: parsed.DueDate || 'N/A',
+  };
 }
 
 // ── Write to SharePoint Excel ─────────────────────────────────
@@ -839,6 +896,10 @@ function populateSettingsUI() {
   document.getElementById('sInterval').value = state.settings.intervalMins || 60;
   document.getElementById('sClientId').value = state.settings.clientId || '';
   document.getElementById('sTenantId').value = state.settings.tenantId || 'common';
+  // Also populate overlay fields
+  if (document.getElementById('overlayClientId')) document.getElementById('overlayClientId').value = state.settings.clientId || '';
+  if (document.getElementById('overlayTenantId')) document.getElementById('overlayTenantId').value = state.settings.tenantId || 'common';
+  if (document.getElementById('overlayApiKey')) document.getElementById('overlayApiKey').value = state.settings.apiKey || '';
 }
 function saveSettings() {
   state.settings.apiKey = document.getElementById('sApiKey').value.trim();
