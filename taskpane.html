@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RFP Extractor</title>
+  <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --card: #20243a;
+      --border: #2e3250;
+      --accent: #4f6ef7;
+      --accent-glow: rgba(79,110,247,0.18);
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --text: #e8eaf6;
+      --muted: #7b82a8;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-logo { width: 26px; height: 26px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .header-title { font-size: 14px; font-weight: 600; }
+    .header-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); cursor: pointer; padding: 5px 8px; font-size: 13px; transition: all 0.15s; }
+    .btn-icon:hover { border-color: var(--accent); color: var(--text); }
+
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .tab { flex: 1; padding: 9px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; flex: 1; flex-direction: column; gap: 12px; padding: 14px; overflow-y: auto; }
+    .tab-panel.active { display: flex; }
+
+    /* Status box */
+    .status-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; }
+    .status-row { display: flex; justify-content: space-between; align-items: center; }
+    .status-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .status-val { font-size: 12px; font-weight: 600; }
+    .status-val.ok { color: var(--green); }
+    .status-val.warn { color: var(--yellow); }
+    .status-val.err { color: var(--red); }
+    .status-val.neutral { color: var(--text); }
+    .progress-wrap { background: var(--card); border-radius: 4px; height: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--accent); border-radius: 4px; width: 0%; transition: width 0.4s ease; }
+
+    /* Timer ring */
+    .timer-section { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .timer-ring-wrap { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
+    .timer-ring-wrap svg { transform: rotate(-90deg); }
+    .timer-track { fill: none; stroke: var(--card); stroke-width: 4; }
+    .timer-fill { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 138.2; stroke-dashoffset: 138.2; transition: stroke-dashoffset 1s linear; }
+    .timer-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text); }
+    .timer-info { flex: 1; }
+    .timer-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .timer-next { font-size: 11px; color: var(--muted); }
+    .timer-next span { color: var(--green); font-weight: 600; }
+    .toggle-wrap { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+    .toggle { position: relative; width: 34px; height: 18px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--card); border-radius: 18px; cursor: pointer; transition: 0.2s; border: 1px solid var(--border); }
+    .toggle-slider:before { content: ''; position: absolute; height: 12px; width: 12px; left: 2px; top: 2px; background: var(--muted); border-radius: 50%; transition: 0.2s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+    .toggle input:checked + .toggle-slider:before { transform: translateX(16px); background: #fff; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 8px; }
+    .btn { flex: 1; padding: 9px 10px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3a56d4; }
+    .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+    .btn-green { background: var(--green); color: #0f1117; }
+    .btn-green:hover:not(:disabled) { background: #28b885; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+    .btn-primary.loading .spinner { display: block; }
+    .btn-primary.loading .btn-label { display: none; }
+
+    /* Results table */
+    .results-section { display: flex; flex-direction: column; gap: 8px; }
+    .results-header { display: flex; justify-content: space-between; align-items: center; }
+    .results-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .badge-count { background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent); border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+    .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead tr { background: var(--card); }
+    thead th { padding: 7px 8px; text-align: left; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; white-space: nowrap; }
+    tbody tr { border-top: 1px solid var(--border); transition: background 0.1s; }
+    tbody tr:hover { background: var(--card); }
+    tbody td { padding: 7px 8px; vertical-align: top; }
+    .td-name { font-weight: 500; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .td-state { color: var(--accent); font-weight: 700; text-align: center; }
+    .td-date { color: var(--green); white-space: nowrap; }
+    .td-na { color: var(--muted); }
+    .td-dup { color: var(--yellow); font-size: 10px; }
+    .td-new { color: var(--green); font-size: 10px; font-weight: 700; }
+    .td-err { color: var(--red); font-size: 10px; }
+
+    /* Settings */
+    .settings-group { display: flex; flex-direction: column; gap: 10px; }
+    .field-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .field-input { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: var(--text); font-size: 12px; font-family: var(--font); outline: none; transition: border-color 0.15s; }
+    .field-input:focus { border-color: var(--accent); }
+    .field-hint { font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+    .field-hint code { background: var(--card); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; font-size: 10px; color: var(--accent); }
+    .save-banner { background: var(--accent-glow); border: 1px solid var(--accent); border-radius: 7px; padding: 8px 12px; font-size: 11px; color: var(--accent); display: none; }
+    .auth-status { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12px; }
+    .auth-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .auth-dot.ok { background: var(--green); }
+    .auth-dot.err { background: var(--red); }
+
+    /* Log */
+    .log-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 10.5px; font-family: 'Consolas', monospace; color: var(--muted); max-height: 90px; overflow-y: auto; line-height: 1.6; }
+    .log-ok { color: var(--green); }
+    .log-warn { color: var(--yellow); }
+    .log-err { color: var(--red); }
+    .log-info { color: var(--accent); }
+
+    /* Empty */
+    .empty-state { text-align: center; padding: 20px 12px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .empty-icon { font-size: 26px; margin-bottom: 8px; }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border); }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">R</div>
+    <div>
+      <div class="header-title">RFP Extractor</div>
+      <div class="header-sub">RADGov · Auto-sync to SharePoint</div>
+    </div>
+  </div>
+  <button class="btn-icon" onclick="switchTab('settings')" title="Settings">⚙</button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab-main" onclick="switchTab('main')">Dashboard</div>
+  <div class="tab" id="tab-log" onclick="switchTab('log')">Activity Log</div>
+  <div class="tab" id="tab-settings" onclick="switchTab('settings')">Settings</div>
+</div>
+
+<!-- MAIN TAB -->
+<div class="tab-panel active" id="panel-main">
+
+  <!-- Timer -->
+  <div class="timer-section">
+    <div class="timer-ring-wrap">
+      <svg viewBox="0 0 48 48" width="52" height="52">
+        <circle class="timer-track" cx="24" cy="24" r="22"/>
+        <circle class="timer-fill" id="timerRing" cx="24" cy="24" r="22"/>
+      </svg>
+      <div class="timer-label" id="timerLabel">--:--</div>
+    </div>
+    <div class="timer-info">
+      <div class="timer-title">Hourly Auto-Scan</div>
+      <div class="timer-next">Next run: <span id="nextRunTime">—</span></div>
+      <div style="margin-top:6px">
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="autoToggle" onchange="toggleAuto(this.checked)"/>
+            <span class="toggle-slider"></span>
+          </label>
+          <span id="autoLabel">Auto-scan off</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-box">
+    <div class="status-row">
+      <span class="status-label">Status</span>
+      <span class="status-val neutral" id="statusText">Ready</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Emails found</span>
+      <span class="status-val neutral" id="emailCount">—</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">New rows added</span>
+      <span class="status-val neutral" id="newCount">—</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Last sync</span>
+      <span class="status-val neutral" id="lastSync">Never</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btnScan" onclick="runScan()">
+      <div class="spinner"></div>
+      <span class="btn-label">▶ Run Now</span>
+    </button>
+    <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSection" style="display:none">
+    <div class="results-header">
+      <span class="results-title">Last Run Results</span>
+      <span class="badge-count" id="resultsBadge">0</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>OppName</th>
+            <th>ST</th>
+            <th>Organization</th>
+            <th>Due</th>
+            <th>↑</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">📬</div>
+    Enable <strong>Auto-scan</strong> or click <strong>Run Now</strong> to scan SalesRFP and sync new rows to your SharePoint Excel.
+  </div>
+
+</div>
+
+<!-- LOG TAB -->
+<div class="tab-panel" id="panel-log">
+  <div class="results-header">
+    <span class="results-title">Activity Log</span>
+    <button class="btn-icon" onclick="clearLog()" style="font-size:11px">Clear</button>
+  </div>
+  <div class="log-box" id="logBox" style="max-height:420px">
+    <span class="log-info">[ready] RFP Extractor initialized.</span>
+  </div>
+</div>
+
+<!-- SETTINGS TAB -->
+<div class="tab-panel" id="panel-settings">
+
+  <div class="settings-group">
+    <div>
+      <div class="field-label">Anthropic API Key</div>
+      <input class="field-input" type="password" id="settingApiKey" placeholder="sk-ant-api03-…" oninput="markDirty()"/>
+      <div class="field-hint">Your Claude API key. Stored in browser localStorage — never sent anywhere except Anthropic.</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="field-label">SharePoint Site URL</div>
+      <input class="field-input" type="text" id="settingSiteUrl" placeholder="https://yourorg.sharepoint.com/sites/RADGov" oninput="markDirty()"/>
+      <div class="field-hint">The base URL of your SharePoint site (no trailing slash).</div>
+    </div>
+
+    <div>
+      <div class="field-label">Excel File Path (relative to site)</div>
+      <input class="field-input" type="text" id="settingFilePath" placeholder="/Shared Documents/RFP_List.xlsx" oninput="markDirty()"/>
+      <div class="field-hint">Path from the SharePoint site root. Usually starts with <code>/Shared Documents/</code> or your document library name.</div>
+    </div>
+
+    <div>
+      <div class="field-label">Sheet Name</div>
+      <input class="field-input" type="text" id="settingSheetName" placeholder="Sheet1" oninput="markDirty()"/>
+      <div class="field-hint">Exact name of the worksheet tab where rows will be appended.</div>
+    </div>
+
+    <div>
+      <div class="field-label">Scan Interval</div>
+      <input class="field-input" type="number" id="settingInterval" placeholder="60" min="10" max="1440" oninput="markDirty()"/>
+      <div class="field-hint">Minutes between automatic scans (default: 60). Minimum: 10.</div>
+    </div>
+
+    <div class="save-banner" id="saveBanner">✓ Settings saved</div>
+
+    <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="field-label">Microsoft Graph Auth</div>
+      <div class="auth-status">
+        <div class="auth-dot" id="authDot"></div>
+        <div id="authStatusText">Not authenticated — sign in to enable SharePoint sync.</div>
+      </div>
+      <button class="btn btn-secondary" style="margin-top:8px; width:100%" onclick="authenticateGraph()">🔑 Sign in with Microsoft</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="src/taskpane.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/><title>Auth</title></head>
+<body>
+<script>
+  // Parse the access_token from the URL fragment after Microsoft redirect
+  (function () {
+    const hash = window.location.hash.substring(1);
+    const params = {};
+    hash.split('&').forEach(function (pair) {
+      const parts = pair.split('=');
+      params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+    });
+    // Send result back to the Office add-in task pane
+    if (typeof Office !== 'undefined') {
+      Office.onReady(function () {
+        Office.context.ui.messageParent(JSON.stringify(params));
+      });
+    } else {
+      // Fallback: load Office.js then send
+      const s = document.createElement('script');
+      s.src = 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js';
+      s.onload = function () {
+        Office.onReady(function () {
+          Office.context.ui.messageParent(JSON.stringify(params));
+        });
+      };
+      document.head.appendChild(s);
+    }
+  })();
+</script>
+</body>
+</html>
